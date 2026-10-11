@@ -1,3 +1,5 @@
+PX4 v1.14 shaft parameter set: notes for px4_v1.14_shaft.params
+Values marked MEASURE or TUNE must be set for the airframe before flight.
 
 GPS denied
   EKF2_GPS_CTRL      = 0        
@@ -20,7 +22,7 @@ Optical flow: position hold near a surface only
   SENS_FLOW_MAXR     = 7.4      PAA3905 limit
   EKF2_TERR_MASK     = 3        terrain from range + flow
 
-Height: baro reference, ToF for terrain (see README 'Height, terrain and the collar edge')
+Height: baro reference, ToF for terrain (see README §5.3, Height, terrain and the collar edge)
   EKF2_BARO_CTRL     = 1        
   EKF2_HGT_REF       = 0        v1.14 DEFAULT IS GPS (1) - must change
   EKF2_RNG_CTRL      = 1        conditional
@@ -41,7 +43,7 @@ Horizontal position from the lidar bore-centre fix (external vision)
   EKF2_EVP_GATE      = 5.0      
   EKF2_EV_QMIN       = 0        
 
-Magnetometer: fine at the surface; unreliable underground (see README Known gaps)
+Magnetometer: fine at the surface; unreliable underground (see README §12, Known limitations)
   EKF2_MAG_TYPE      = 0        
 
 Collision Prevention for Position mode (pilot flying)

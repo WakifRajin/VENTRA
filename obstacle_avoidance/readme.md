@@ -1,21 +1,44 @@
-# PX4 + RPLIDAR C1 Obstacle Avoidance Setup
+# Front-Obstacle Back-Off Test (MAVSDK + RPLIDAR C1)
 
-This guide explains how to use a Raspberry Pi 5 with a Pixhawk 6C and an RPLIDAR C1 to make the drone move backward a little when an obstacle comes too close in front of it.
+Standalone test of LiDAR-triggered avoidance on the Raspberry Pi 5 and Pixhawk 6C, without ROS. When an obstacle enters a cone in front of the vehicle, the script commands a slow backward velocity in Offboard mode until the obstacle is outside the stop distance.
 
-## What this setup does
+This test predates the ROS 2 `reactive_avoidance` node in `src/odom_bridge`, which supersedes it for normal operation.
 
-- The Raspberry Pi reads distance data from the RPLIDAR.
-- If an object enters the front safety zone, the Pi sends a small backward velocity command to PX4.
-- The drone keeps moving backward only while the obstacle is too close.
-- When the obstacle is far enough away again, the drone stops backing up.
+---
 
-## Important limitation
+## 1. Function
 
-The RPLIDAR C1 is a 2D lidar, so it only sees the scan plane it is mounted in. It may not detect hands or obstacles above or below that plane. Test with props removed first.
+| Condition (minimum range in the front cone) | Mode | Commanded body velocity |
+|---|---|---|
+| No valid return yet | `WAITING` | 0 |
+| d < `stop-distance` | `BACKING` | vx = −`back-speed` |
+| `stop-distance` ≤ d ≤ `clear-distance` | `HOLD` | 0 |
+| d > `clear-distance` | `CLEAR` | 0 |
 
-## Install Python packages
+Returns between 0.05 m and 12 m inside ±`cone-deg` of the LiDAR's 0° bearing are considered. The LiDAR 0° direction must point to the vehicle nose.
 
-On Ubuntu 24.04 on the Raspberry Pi, run:
+On exit (Ctrl+C or any error) the script stops Offboard and **commands PX4 to land**.
+
+### 1.1 Limitations
+
+- The RPLIDAR C1 measures a single horizontal plane. Obstacles above or below that plane, including a hand held at a different height, are not detected.
+- Only the forward cone is monitored. The vehicle can back into an obstacle behind it.
+- Only forward obstacles produce a response; there is no lateral or vertical avoidance.
+
+---
+
+## 2. Files
+
+| File | Function |
+|---|---|
+| `lidar_front_test.py` | Reads the LiDAR and prints the minimum front distance. No flight-controller connection. |
+| `avoidance_px4.py` | Connects to PX4 through MAVSDK and runs the back-off logic in Offboard mode. |
+
+---
+
+## 3. Installation
+
+On the Raspberry Pi (Ubuntu 24.04):
 
 ```bash
 sudo apt update
@@ -26,86 +49,80 @@ pip install --upgrade pip
 pip install mavsdk rplidar pyserial
 ```
 
-If the lidar or Pixhawk serial ports are blocked, add your user to the dialout group:
+If access to the serial ports is denied, add the user to the `dialout` group, then log out and back in:
 
 ```bash
 sudo usermod -aG dialout $USER
 ```
 
-Log out and log back in after that.
+---
 
-## Files in this workspace
+## 4. Command-Line Arguments
 
-- `lidar_front_test.py` checks that the lidar is working and prints the closest front distance.
-- `avoidance_px4.py` connects to PX4 and sends the backward command when an obstacle gets too close.
+| Argument | Default | Description |
+|---|---|---|
+| `--lidar-port` | `/dev/ttyUSB0` | LiDAR serial device |
+| `--lidar-baudrate` | 115200 | LiDAR baud rate. **The RPLIDAR C1 uses 460800.** |
+| `--mavsdk-address` | `serial:///dev/ttyACM0:921600` | PX4 connection |
+| `--cone-deg` | 25.0 | Half-angle of the front cone, degrees |
+| `--stop-distance` | 1.5 | Range below which the vehicle backs away, m |
+| `--clear-distance` | 2.0 | Range above which the path is reported clear, m |
+| `--back-speed` | 0.25 | Backward speed, m/s |
+| `--control-hz` | 10.0 | Setpoint rate, Hz |
 
-## Step 1: Test the lidar only
+`lidar_front_test.py` accepts `--port`, `--baudrate` and `--cone-deg` with the same defaults.
 
-Run this first before trying flight control.
+Common PX4 connection addresses:
+
+| Link | Address |
+|---|---|
+| USB | `serial:///dev/ttyACM0:921600` |
+| GPIO UART (TELEM2) | `serial:///dev/ttyAMA0:921600` |
+
+The TELEM2 UART is normally occupied by the uXRCE-DDS agent. Stop the agent, or use USB, before running this test.
+
+---
+
+## 5. Procedure
+
+### 5.1 LiDAR check
 
 ```bash
 source ~/px4_avoidance/bin/activate
-python3 lidar_front_test.py --port /dev/ttyUSB0
+python3 lidar_front_test.py --port /dev/ttyUSB0 --baudrate 460800
 ```
 
-If the port is different on your Pi, replace `/dev/ttyUSB0` with the correct device.
+Move an object in front of the LiDAR. The printed distance must change accordingly. Do not proceed until this works.
 
-You should see the front distance update as you move your hand in front of the lidar.
-
-## Step 2: Verify PX4 connection
-
-Connect the Pixhawk 6C to the Raspberry Pi.
-
-Common serial addresses are:
-
-- `serial:///dev/ttyACM0:921600` for USB
-- `serial:///dev/ttyAMA0:921600` or `serial:///dev/ttyS0:921600` for UART
-
-Start with the correct one for your wiring.
-
-## Step 3: Run the avoidance script
+### 5.2 Bench test (propellers removed)
 
 ```bash
-source ~/px4_avoidance/bin/activate
-python3 avoidance_px4.py --lidar-port /dev/ttyUSB0 --mavsdk-address serial:///dev/ttyACM0:921600
+python3 avoidance_px4.py --lidar-port /dev/ttyUSB0 --lidar-baudrate 460800 \
+    --mavsdk-address serial:///dev/ttyACM0:921600
 ```
 
-Replace the ports if your device names are different.
+1. Wait for `PX4 connected`.
+2. Press Enter to start Offboard.
+3. Place an object inside the stop distance. Mode must change to `BACKING` with vx = −0.25 m/s.
+4. Remove the object. Mode must change to `HOLD` and then `CLEAR`, with vx = 0.
 
-## Step 4: Flight test procedure
+### 5.3 Flight test
 
-1. Remove the propellers for the first test.
-2. Confirm the lidar test script shows changing distance values.
-3. Confirm PX4 is connected to the Pi.
-4. Put the drone in a safe hover setup.
-5. Run the avoidance script.
-6. Press Enter in the terminal only when the drone is already stable and safe.
-7. Move your hand in front of the lidar.
-8. The drone should command a small backward motion.
-9. Remove the obstacle and confirm the drone stops backing up.
+1. Install propellers. Confirm that a safety pilot can immediately take over with the RC transmitter.
+2. Take off manually and establish a stable hover in an open area.
+3. Run the script and press Enter only when the vehicle is stable.
+4. Approach the front of the vehicle with a large, flat object at LiDAR height. The vehicle must move backward and stop once the object is beyond the stop distance.
+5. Press Ctrl+C. The vehicle will land.
 
-## Suggested tuning values
+---
 
-Start with these values and adjust slowly:
+## 6. Tuning
 
-- `stop-distance`: `1.5`
-- `clear-distance`: `2.0`
-- `back-speed`: `0.25`
+Adjust in small steps from the defaults:
 
-If the drone reacts too early, lower the stop distance a little. If it reacts too late, raise it a little.
-
-## Safety notes
-
-- Test without props first.
-- Keep the backward speed low.
-- Do not rely on one lidar for full 3D obstacle detection.
-- Make sure you can immediately regain manual control.
-
-## If you want the next improvement
-
-A better later version is to add:
-
-- front, left, right, and downward sensing
-- a depth camera or multiple lidars
-- a manual override switch
-- a PX4 parameter-based safety layer
+| Observation | Adjustment |
+|---|---|
+| Reacts too early | Reduce `--stop-distance` |
+| Reacts too late | Increase `--stop-distance` |
+| Backs away too aggressively | Reduce `--back-speed` |
+| Responds to the airframe or propeller guards | Reduce `--cone-deg` or check LiDAR mounting |

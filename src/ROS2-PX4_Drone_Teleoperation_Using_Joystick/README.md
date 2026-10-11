@@ -1,183 +1,81 @@
-# 🛸 Drone Teleoperation Using KeyBoard/ Joystick (ROS 2 + PX4)
+# PX4 SITL Teleoperation (Keyboard and Joystick)
 
-Control a **simulated drone** using **keyboard/ joystick commands** via **ROS 2 Humble** and **PX4 Autopilot**.
-Visualize in **Gazebo**, monitor in **QGroundControl**, and bridge communication using the **Micro XRCE-DDS Agent**.
+Simulation environment for developing and testing Offboard velocity control. A PX4 SITL quadrotor in Gazebo is flown from the keyboard or a joystick through ROS 2, with QGroundControl for monitoring and the Micro XRCE-DDS Agent as the PX4 to ROS 2 bridge.
 
----
-## 🎥 Joystick based Drone Teleoperation Demo  
-https://github.com/user-attachments/assets/ecb34f04-d7c9-4618-aa5d-2d075a3f07f9
+Adapted from [MechaMind-Labs/ROS2-PX4_Drone_Teleoperation_Using_Joystick](https://github.com/MechaMind-Labs/ROS2-PX4_Drone_Teleoperation_Using_Joystick) (maintainer: [Curious-Utkarsh](https://github.com/Curious-Utkarsh)). The bring-up has been modified for the VENTRA workspace: GPS-denied vehicle model, indoor world, and Gazebo clock and LiDAR bridges.
 
----
-
-## 🎯 Objective
-
-Create a ROS 2-based teleoperation setup for a PX4 SITL drone:
-
-* Run drone simulation in Gazebo Sim
-* Monitor with QGroundControl
-* Control it with your keyboard/ joystick via ROS 2 topics
+Demonstration video (upstream): https://github.com/user-attachments/assets/ecb34f04-d7c9-4618-aa5d-2d075a3f07f9
 
 ---
 
-## ⚙️ System Requirements
+## 1. Packages
 
-* 🐧 Ubuntu 22.04 LTS
-* 🌀 ROS 2 Humble Hawksbill
-* 💾 8–10 GB free space
-* 💡 Basic terminal knowledge
+| Package | Contents |
+|---|---|
+| `px4_bringup` | `minimal.launch.py`: starts the complete simulation environment |
+| `px4_offboard` | `velocity_offboard_control.py` (Offboard controller), `teleop_keyboard.py`, `teleop_joystick.py`, launch files, `config/joy_config.yaml` |
+
+### 1.1 `minimal.launch.py`
+
+| Process | Detail |
+|---|---|
+| PX4 SITL | Headless; model `gz_x500_gps_denied`; world `hospital`; spawn pose (0, 15, 0) |
+| Micro XRCE-DDS Agent | `MicroXRCEAgent udp4 -p 8888` |
+| Gazebo GUI | `gz sim -g` |
+| QGroundControl | `~/Downloads/QGroundControl-x86_64.AppImage` |
+| Clock bridge | `/clock` (Gazebo to ROS) |
+| LiDAR bridge | Gazebo `lidar_2d_v2` scan remapped to `/scan` |
+
+PX4 is expected at `~/PX4-Autopilot`. The `gz_x500_gps_denied` model and `hospital` world must exist in that tree. If the LiDAR topic differs, list the available topics with `gz topic -l | grep -i scan` and update `GZ_LIDAR_TOPIC` in the launch file.
+
+### 1.2 Command interface
+
+| Topic | Type | Direction | Content |
+|---|---|---|---|
+| `/offboard_velocity_cmd` | `geometry_msgs/Twist` | Teleop → controller | Velocity and yaw-rate command |
+| `/arm_message` | `std_msgs/Bool` | Teleop → controller | Arm (true) or disarm (false) |
+| `/fmu/in/offboard_control_mode`, `/fmu/in/trajectory_setpoint`, `/fmu/in/vehicle_command` | `px4_msgs` | Controller → PX4 | Offboard heartbeat, setpoints, commands |
+| `/fmu/out/vehicle_status_v1`, `/fmu/out/vehicle_attitude` | `px4_msgs` | PX4 → controller | State feedback |
+
+The controller subscribes to the versioned status topic `vehicle_status_v1` used by recent PX4 main. Change the topic name in `velocity_offboard_control.py` if the PX4 version publishes a different name (`ros2 topic list | grep vehicle_status`).
 
 ---
 
-# 🚀 Quick Start — How to Use This Repository
+## 2. Requirements
 
-### **1️⃣ Create Your ROS 2 Workspace**
+| Item | Version |
+|---|---|
+| Operating system | Ubuntu 24.04 (Ubuntu 22.04 with ROS 2 Humble is also supported upstream) |
+| ROS 2 | Jazzy |
+| Simulator | Gazebo Harmonic (installed by the PX4 setup script) |
+| PX4 | PX4-Autopilot main |
+| Disk | 8–10 GB free |
+
+---
+
+## 3. Installation
+
+### 3.1 ROS 2
+
+Install ROS 2 Jazzy (`ros-jazzy-desktop` and `ros-dev-tools`) by following the [official Ubuntu installation guide](https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html), then:
+
+```bash
+echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+```
+
+### 3.2 PX4 Autopilot
 
 ```bash
 cd ~
-mkdir -p px4_ros2_ws/src
-cd px4_ros2_ws/src
-```
-
----
-
-### **2️⃣ Clone the Repository with Submodules**
-
-```bash
-git clone https://github.com/MechaMind-Labs/ROS2-PX4_Drone_Teleoperation_Using_Joystick.git --recursive
-```
-
----
-
-### **3️⃣ Install Dependencies**
-
-Use `rosdep` to automatically install all required ROS 2 dependencies:
-
-```bash
-cd ~/px4_ros2_ws
-sudo apt install python3-rosdep -y
-sudo rosdep init
-rosdep update
-rosdep install --from-paths src --ignore-src -r -y
-```
-
----
-
-### **4️⃣ Build the Workspace**
-
-```bash
-colcon build
-```
-
----
-
-### **5️⃣ Source the Workspace**
-
-```bash
-source install/setup.bash
-```
-
----
-
-### **6️⃣ Launch the Simulation + PX4 + XRCE Agent**
-
-In **Terminal 1**, start the full PX4 bringup:
-
-```bash
-ros2 launch px_bringup minimal.launch.py
-```
-
-✔️ This launches:
-
-* PX4 SITL
-* Gazebo Sim with drone
-* Micro XRCE-DDS Agent
-* PX4–ROS2 communication bridge
-
-A drone will appear in Gazebo. 🛸
-
----
-
-### **7️⃣ Run Teleoperation (Keyboard or Joystick)**
-
-Open **Terminal 2**, choose **either keyboard or joystick teleoperation**:
-
-#### 🖮 Keyboard Teleoperation
-
-```bash
-ros2 launch px4_offboard keyboard_teleop.launch.py
-```
-
-#### 🎮 Joystick Teleoperation
-
-```bash
-ros2 launch px4_offboard joystick_teleop.launch.py
-```
-
-You can now control the drone in Gazebo! 🚀🕹️
-
----
-
-## 🧩 Setup Guide
-
-> 💡 Open three terminals — one each for **PX4 SITL**, **XRCE Agent**, and **QGroundControl**.
-
----
-
-### 1️⃣ Install ROS 2 Humble
-
-```bash
-sudo apt update && sudo apt install locales
-sudo locale-gen en_US en_US.UTF-8
-sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-export LANG=en_US.UTF-8
-
-sudo apt install software-properties-common
-sudo add-apt-repository universe
-sudo apt update && sudo apt install curl -y
-
-sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-  -o /usr/share/keyrings/ros-archive-keyring.gpg
-
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" | \
-sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-
-sudo apt update && sudo apt upgrade -y
-sudo apt install -y ros-humble-desktop ros-dev-tools
-
-source /opt/ros/humble/setup.bash
-echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-```
-
-Install required Python dependencies:
-
-```bash
-pip install --user -U empy==3.3.4 pyros-genmsg setuptools
-```
-
----
-
-### 2️⃣ Install PX4 Autopilot (Simulation)
-
-```bash
-cd
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
 bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
-cd PX4-Autopilot/
+cd PX4-Autopilot
 make px4_sitl
 ```
 
-#### Test the SITL simulation (Terminal 1)
+Verify with `make px4_sitl gz_x500`. Gazebo should open with an x500 quadrotor.
 
-```bash
-make px4_sitl gz_x500
-```
-
-✅ Gazebo Sim should launch with an x500 drone model.
-
----
-
-### 3️⃣ Install and Run Micro XRCE-DDS Agent (Terminal 2)
+### 3.3 Micro XRCE-DDS Agent
 
 ```bash
 git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
@@ -189,128 +87,107 @@ sudo make install
 sudo ldconfig /usr/local/lib/
 ```
 
-Run the agent:
+Verify with `MicroXRCEAgent udp4 -p 8888`. The agent reports that it is listening on port 8888.
 
-```bash
-MicroXRCEAgent udp4 -p 8888
-```
+### 3.4 QGroundControl
 
-Expected:
-
-```
-UDP agent listening on port 8888
-```
-
----
-
-### 4️⃣ Run QGroundControl (Terminal 3)
-
-1. Download the AppImage:
-   👉 [QGroundControl Downloads](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html)
-
-2. Run it:
+Download the AppImage from the [QGroundControl download page](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html) to `~/Downloads`, then:
 
 ```bash
 chmod +x ~/Downloads/QGroundControl-x86_64.AppImage
-cd ~/Downloads
-./QGroundControl-x86_64.AppImage
 ```
 
 QGroundControl connects automatically when PX4 SITL is running.
 
----
+### 3.5 Workspace
 
-### 5️⃣ ROS 2 Integration with PX4
-
-Create your workspace:
+In the VENTRA workspace these packages are already present under `src/`. Install dependencies and build:
 
 ```bash
-cd ~
-mkdir -p px4_ros2_ws/src
-cd px4_ros2_ws/src
-```
-
-Clone PX4 ROS 2 packages:
-
-```bash
-git clone https://github.com/PX4/px4_msgs.git
-git clone https://github.com/PX4/px4_ros_com.git
-```
-
-Build and source:
-
-```bash
-cd ..
-source /opt/ros/humble/setup.bash
+cd ~/px4_ros2_ws
+sudo rosdep init        # first time only
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
 colcon build
-source install/local_setup.bash
-```
-
-Test ROS 2 ↔ PX4 communication:
-
-```bash
-ros2 launch px4_ros_com sensor_combined_listener.launch.py
-```
-
-If successful, you’ll see real-time IMU/sensor updates in the console.
-
----
-
-### 6️⃣ Manual PX4 Commands (Quick Check)
-
-Run these in the PX4 terminal:
-
-```bash
-commander arm       # Arm motors
-commander takeoff   # Take off vertically
-commander land      # Land the drone
-commander disarm    # Disarm after landing
+source install/setup.bash
 ```
 
 ---
 
-## 🔍 Verify ROS 2 ↔ PX4 Bridge
+## 4. Operation
+
+### 4.1 Start the simulation
+
+Terminal 1:
 
 ```bash
-source /opt/ros/humble/setup.bash
+ros2 launch px4_bringup minimal.launch.py
+```
+
+Wait until the vehicle appears in Gazebo and QGroundControl shows a connected vehicle.
+
+### 4.2 Start teleoperation
+
+Terminal 2, one of:
+
+```bash
+ros2 launch px4_offboard keyboard_teleop.launch.py
+ros2 launch px4_offboard joystick_teleop.launch.py
+```
+
+### 4.3 Keyboard map
+
+| Key | Action |
+|---|---|
+| Space | Toggle arm / disarm |
+| W / S | Throttle up / down (incremental) |
+| Arrow keys | Forward, backward, left, right (while held) |
+| A / D | Yaw left / right (while held) |
+| Ctrl+C | Exit |
+
+### 4.4 Manual PX4 commands
+
+Entered in the PX4 SITL console for a quick check without ROS:
+
+```
+commander arm
+commander takeoff
+commander land
+commander disarm
+```
+
+---
+
+## 5. Verification
+
+```bash
 ros2 topic list | grep fmu
 ```
 
-Expected output:
+Expected topics include `/fmu/in/offboard_control_mode`, `/fmu/in/trajectory_setpoint`, `/fmu/in/vehicle_command` and `/fmu/out/vehicle_status*`. To confirm data flow from PX4:
 
-```
-/fmu/vehicle_status/out
-/fmu/sensor_combined/out
-/fmu/vehicle_command/in
+```bash
+ros2 topic echo /fmu/out/vehicle_attitude --once
 ```
 
-✅ ROS 2 is now receiving PX4 data successfully.
+---
+
+## 6. Troubleshooting
+
+| Symptom | Cause | Action |
+|---|---|---|
+| QGroundControl does not start | Missing runtime libraries | Install `libfuse2` and the GStreamer plugins |
+| Agent reports port in use | Another agent instance running | `pkill -x MicroXRCEAgent` |
+| No `/fmu` topics | PX4 or agent not running, or `ROS_DOMAIN_ID` mismatch | Check both processes; confirm the domain ID |
+| No `/scan` | Gazebo LiDAR topic name differs | Update `GZ_LIDAR_TOPIC` in `minimal.launch.py` |
+| Vehicle does not respond to commands | Controller subscribed to a status topic PX4 does not publish | Check the `vehicle_status` topic name (§1.2) |
 
 ---
 
-## 🧰 Troubleshooting
+## 7. References
 
-| Issue                          | Solution                                   |
-| ------------------------------ | ------------------------------------------ |
-| QGroundControl fails to launch | Install `libfuse2` and `gstreamer` plugins |
-| XRCE Agent port busy           | Ensure no other agent process is running   |
-| No ROS topics                  | Confirm PX4 and XRCE Agent are running     |
-
----
-
-## 📚 References
-
-* [PX4 Autopilot Docs](https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu)
-* [PX4 ROS 2 Interface (px4_ros_com)](https://github.com/PX4/px4_ros_com)
-* [Micro XRCE-DDS Agent Docs](https://github.com/eProsima/Micro-XRCE-DDS-Agent)
-* [QGroundControl Guide](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html)
-* [ROS2 Humble Docs](https://docs.ros.org/en/humble/index.html)
-
----
-
-## 🙌 Credits
-
-Maintained by **[Curious-Utkarsh](https://github.com/Curious-Utkarsh)**
-Inspired by real-world **drone teleoperation robotic** applications.
-
----
+- [PX4 development environment (Ubuntu)](https://docs.px4.io/main/en/dev_setup/dev_env_linux_ubuntu)
+- [PX4 ROS 2 user guide and `px4_ros_com`](https://github.com/PX4/px4_ros_com)
+- [Micro XRCE-DDS Agent](https://github.com/eProsima/Micro-XRCE-DDS-Agent)
+- [QGroundControl user guide](https://docs.qgroundcontrol.com/master/en/qgc-user-guide/getting_started/download_and_install.html)
+- [ROS 2 Jazzy documentation](https://docs.ros.org/en/jazzy/index.html)
