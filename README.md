@@ -12,7 +12,6 @@
   <img src="https://img.shields.io/badge/Ubuntu-24.04-E95420" alt="Ubuntu 24.04">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">
   <img src="https://img.shields.io/badge/Raspberry%20Pi-5-C51A4A" alt="Raspberry Pi 5">
-  [![YouTube Demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=flat-square&logo=youtube)](https://www.youtube.com/watch?v=l8zfifEWvgo)
 </p>
 
 | Item | Detail |
