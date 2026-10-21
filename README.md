@@ -3,7 +3,6 @@
 <p align="center">
   <img src="docs/images/ventra_hero.jpg" alt="VENTRA quadrotor" width="48%">
   <img src="docs/images/corridor_flight_3d.jpg" alt="Corridor flight with live 3D reconstruction" width="48%">
-  [![Watch the VENTRA Demo Video](https://img.youtube.com/vi/l8zfifEWvgo/hqdefault.jpg)](https://www.youtube.com/watch?v=l8zfifEWvgo)
 </p>
 <p align="center"><em>Figure 1. Left: assembled vehicle with the RPLIDAR C1, 3D-printed mounts and carbon-fibre landing gear. Right: corridor flight with the live 3D reconstruction overlaid.</em></p>
 
@@ -13,6 +12,7 @@
   <img src="https://img.shields.io/badge/Ubuntu-24.04-E95420" alt="Ubuntu 24.04">
   <img src="https://img.shields.io/badge/Python-3.12-3776AB" alt="Python 3.12">
   <img src="https://img.shields.io/badge/Raspberry%20Pi-5-C51A4A" alt="Raspberry Pi 5">
+  [![YouTube Demo](https://img.shields.io/badge/YouTube-Watch%20Demo-red?style=flat-square&logo=youtube)](https://www.youtube.com/watch?v=l8zfifEWvgo)
 </p>
 
 | Item | Detail |
