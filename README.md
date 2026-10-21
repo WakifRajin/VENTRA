@@ -1,9 +1,9 @@
 # VENTRA: Autonomous UAV for GPS-Denied Indoor Exploration and Shaft Inspection
 
-[![Watch the VENTRA Demo Video](https://img.youtube.com/vi/l8zfifEWvgo/hqdefault.jpg)](https://www.youtube.com/watch?v=l8zfifEWvgo)
 <p align="center">
   <img src="docs/images/ventra_hero.jpg" alt="VENTRA quadrotor" width="48%">
   <img src="docs/images/corridor_flight_3d.jpg" alt="Corridor flight with live 3D reconstruction" width="48%">
+  [![Watch the VENTRA Demo Video](https://img.youtube.com/vi/l8zfifEWvgo/hqdefault.jpg)](https://www.youtube.com/watch?v=l8zfifEWvgo)
 </p>
 <p align="center"><em>Figure 1. Left: assembled vehicle with the RPLIDAR C1, 3D-printed mounts and carbon-fibre landing gear. Right: corridor flight with the live 3D reconstruction overlaid.</em></p>
 
